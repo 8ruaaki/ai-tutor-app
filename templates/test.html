@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 演習中 - AI Tutor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        #progress-bar { width: 100%; background: #eee; height: 10px; border-radius: 5px; margin-bottom: 20px; overflow: hidden; }
+        #progress-fill { width: 0%; background: var(--primary-color); height: 100%; transition: 0.3s; }
+
+        /* レイアウト切り替え用 */
+        #test-wrapper.reading-mode {
+            display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; align-items: flex-start;
+        }
+        #test-wrapper.standard-mode { max-width: 700px; margin: 0 auto; }
+
+        #passage-container {
+            background: #fff; padding: 25px; border-radius: 15px; border: 1px solid var(--border-color);
+            position: sticky; top: 20px; max-height: 80vh; overflow-y: auto;
+        }
+
+        .question-card {
+            background: #fff; padding: 20px; border-radius: 12px; margin-bottom: 15px;
+            border-left: 6px solid var(--primary-color); box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+        }
+
+        .choices-group label {
+            display: block; margin: 10px 0; padding: 12px; border: 1px solid #eee; border-radius: 8px; cursor: pointer;
+        }
+
+        /* スマホ・タブレット用 (900px以下) */
+        @media (max-width: 900px) {
+            #test-wrapper.reading-mode { grid-template-columns: 1fr; }
+            #passage-container { position: relative; top: 0; max-height: 40vh; margin-bottom: 20px; }
+        }
+    </style>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']]
+    },
+    options: {
+      skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+    }
+  };
+</script>
+</head>
+<body>
+    <div class="container">
+        <div id="progress-bar"><div id="progress-fill"></div></div>
+        <p id="progress-text" style="font-size: 0.9rem; margin-bottom: 20px;">問題を読み込み中...</p>
+
+        <div id="test-wrapper" class="standard-mode">
+            <div id="passage-container" style="display:none;">
+                <h2 id="passage-title" style="margin-top:0;"></h2>
+                <div id="passage-body" style="white-space: pre-wrap; font-size: 1.05rem;"></div>
+            </div>
+
+            <div id="questions-area">
+                <div id="questions-container"></div>
+                <button id="submit-btn" style="display:none; width:100%; padding:15px; background:var(--primary-color); color:white;" onclick="submitAnswers()">採点する</button>
+                <button id="back-home-btn" 
+                style="flex: 1; padding: 15px; background: #636e72; color: white; font-size: 1.1rem;" 
+                onclick="confirmBackHome()">トップへ戻る</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loader"></div>
+        <p id="status-text" style="margin-top:15px; font-weight:bold;">AIが作成しています...</p>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

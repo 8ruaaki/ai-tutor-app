@@ -1,0 +1,32 @@
+# --- 秘密情報 (絶対に公開しない) ---
+.env
+credentials.json
+*.json
+# ※ただし、もし設定用などで公開してもいいJSONがあれば、上記を消して
+# credentials.json のようにファイル名を直接指定してください。
+
+# --- Python仮想環境 (容量が大きく、他人のPCでは動かないため) ---
+venv/
+env/
+ENV/
+bin/
+lib/
+include/
+share/
+pyvenv.cfg
+
+# --- Pythonキャッシュ (自動生成される不要なファイル) ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# --- OS・エディタ関連 (個人の環境依存ファイル) ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- ログファイル ---
+*.log

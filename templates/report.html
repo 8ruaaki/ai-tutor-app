@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>採点レポート - AI Tutor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .score-box { text-align: center; padding: 30px; background: #fff; border-radius: 20px; margin-bottom: 25px; }
+        .score-val { font-size: 3.5rem; font-weight: bold; color: var(--primary-color); }
+
+        .feedback-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+        .fb-card { padding: 15px; border-radius: 12px; font-size: 0.95rem; }
+        .good-fb { background: #e8f5e9; border-left: 5px solid #4caf50; }
+        .improve-fb { background: #fff3e0; border-left: 5px solid #ff9800; }
+
+        .detail-card { 
+            background: #fff; padding: 20px; border-radius: 12px; margin-bottom: 15px; 
+            border-left: 10px solid #ddd; text-align: left;
+        }
+        .correct { border-left-color: #4caf50; }
+        .wrong { border-left-color: #f44336; }
+        .ans-row { display: flex; gap: 10px; margin: 5px 0; font-size: 0.9rem; }
+        .label { font-weight: bold; min-width: 80px; }
+
+        @media (max-width: 600px) {
+            .feedback-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']]
+    },
+    options: {
+      skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+    }
+  };
+</script>
+</head>
+<body>
+    <div class="container" style="max-width: 800px;">
+        <div class="score-box">
+            <h1>採点結果</h1>
+            <div class="score-val"><span id="score-num">0</span><span style="font-size: 1rem;">点</span></div>
+        </div>
+
+        <div class="feedback-grid">
+            <div class="fb-card good-fb">
+                <strong>🌟 良かった点</strong>
+                <p id="good-points" style="margin-top:5px;"></p>
+            </div>
+            <div class="fb-card improve-fb">
+                <strong>💡 改善アドバイス</strong>
+                <p id="improve-points" style="margin-top:5px;"></p>
+            </div>
+        </div>
+
+        <div id="details-container"></div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top:30px;">
+            <button onclick="window.location.href='/homework_page'" style="background:var(--primary-color); color:white;">宿題を発行</button>
+            <button onclick="window.location.href='/'" style="background:#636e72; color:white;">トップへ戻る</button>
+        </div>
+    </div>
+
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const data = JSON.parse(sessionStorage.getItem('lastReport'));
+            if (!data) return window.location.href = '/';
+
+            document.getElementById('score-num').innerText = data.score;
+            document.getElementById('good-points').innerText = data.good_points;
+            document.getElementById('improve-points').innerText = data.improvement_points;
+
+            const container = document.getElementById('details-container');
+            
+            // 1. まずHTMLを生成して流し込む
+            container.innerHTML = data.details.map((d, i) => `
+                <div class="detail-card ${d.is_correct ? 'correct' : 'wrong'}">
+                    <strong>問 ${i+1}: ${d.question}</strong>
+                    <div class="ans-row"><span class="label">あなたの答:</span><span>${d.user_answer || '未入力'}</span></div>
+                    <div class="ans-row"><span class="label">正解:</span><span style="color:#f44336; font-weight:bold;">${d.correct_answer}</span></div>
+                    <div style="margin-top:10px; padding:10px; background:#f9f9f9; border-radius:5px; font-size:0.85rem;">${d.explanation}</div>
+                </div>
+            `).join('');
+
+            // 2. 【重要】HTMLを描き終えた後、MathJaxに数式の変換を命じる
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                MathJax.typesetPromise([container]).catch((err) => console.log('MathJax error: ', err));
+            }
+        });
+    </script>
+</body>
+</html>

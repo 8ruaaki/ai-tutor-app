@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>宿題プリント生成 - AI Tutor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .homework-sheet {
+            background: white;
+            padding: 40px;
+            border-radius: 5px;
+            box-shadow: none;
+            border: 2px solid #333; /* 印刷時に映えるデザイン */
+            min-height: 297mm; /* A4サイズ意識 */
+            text-align: left;
+            line-height: 1.6;
+        }
+        .print-btn {
+            background: #2d3436;
+            color: white;
+            padding: 12px 25px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+        @media print {
+            .no-print { display: none; }
+            body { background: white; }
+            .homework-sheet { border: none; padding: 0; }
+        }
+        h1, h2 { border-bottom: 2px solid #333; padding-bottom: 5px; }
+        code { background: #f4f4f4; padding: 2px 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="no-print">
+            <h1>📄 パーソナライズ宿題プリント</h1>
+            <p>AIが今回のテスト結果から、あなたに最適な復習メニューを作成しました。</p>
+            <button class="print-btn" onclick="window.print()">🖨️ プリントして解く</button>
+            <button onclick="window.location.href='/'" style="background:#eee; color:#333;">トップへ戻る</button>
+        </div>
+
+        <div id="homework-display" class="homework-sheet">
+            <p id="loading-msg">AIがプリントを作成中です。10秒ほどお待ちください...</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const lastReport = JSON.parse(sessionStorage.getItem('lastReport'));
+            const subject = sessionStorage.getItem('targetSubject');
+
+            if (!lastReport) {
+                alert("レポートデータがありません");
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                const res = await fetch('/generate_homework', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        subject: subject,
+                        score: lastReport.score,
+                        improvement_points: lastReport.improvement_points
+                    })
+                });
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    // MarkdownをHTMLに変換して表示
+                    document.getElementById('homework-display').innerHTML = marked.parse(data.homework_content);
+                }
+            } catch (e) {
+                document.getElementById('loading-msg').innerText = "エラーが発生しました。";
+            }
+            // ★ここに追加！宿題が表示された直後に実行
+                if (window.MathJax && window.MathJax.typesetPromise) {
+                    MathJax.typesetPromise();
+                }
+        });
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']]
+    },
+    options: {
+      skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+    }
+  };
+</script>
+</body>
+</html>
