@@ -43,7 +43,7 @@ def homework_page(): return render_template('homework.html')
 def generate_test():
     data = request.json
     subject = data.get('subject', '')
-    level = data.get('level', '中級')
+    level = data.get('level', '初級')
     count = int(data.get('count', 5))
     
     is_reading_mode = "長文" in subject
@@ -53,7 +53,7 @@ def generate_test():
         prompt = f"""
         単元: {subject} 難易度: {level}
         【構成ルール】
-        1. 本文を1つ作成。
+        1. 本文を1つ作成。(必要に応じてタイトルも)
         2. 問題は必ず5問。
         3. 重要：各設問は【必ず4択の選択式】にしてください。
         4. 出力JSON形式を厳守：
@@ -78,7 +78,8 @@ def generate_test():
         【構成ルール】
         1. 【合計 {count} 問】の小テストを作成してください。
         2. 1つの設問（ID）につき、解くべき問題は「絶対に1つだけ」にしてください。(1)(2)などの小問分けは厳禁です。
-        3. 選択式（4択）、空欄補充、記述式をバランスよく混ぜてください。
+        3. 記述問題の解答欄は1つしかありません。解答も1つだけにしてください。
+        4. 選択式（4択）、空欄補充、記述式をバランスよく混ぜてください。
         
         【数式・表記ルール】
         1. 数式は必ず LaTeX 形式を使用し、$ $ で囲んで出力してください。
@@ -128,8 +129,8 @@ def submit_grading():
     2. user_answerには「ユーザーが入力した値」を、correct_answerには「本来の正解」を入れてください。
     3. 解説(explanation)は日本語で簡潔に書いてください。
     4. 良かった点(good_points)と改善点(improvement_points)も必ず日本語で出力してください。
-    5. 良かった点(good_points)は具体的に5文以上で書いてください。
-    6. 改善点(improvement_points)は具体的に3文以上で書いてください。
+    5. 良かった点(good_points)は具体的に4文で書いてください。
+    6. 改善点(improvement_points)は具体的に3文で書いてください。
 
     【出力形式（これ以外の文字は一切出力しないでください）】
     {{
@@ -154,54 +155,74 @@ def submit_grading():
         print(f"Server Error: {e}")
         return jsonify({"status": "error", "message": str(e)})
 
-# --- API: 宿題生成 (プロンプト大幅強化版) ---
+# --- API: 宿題生成 (修正版) ---
 @app.route('/generate_homework', methods=['POST'])
 def generate_homework():
+    # request.form ではなく request.json を使用してデータを取得
     data = request.json
-    subject = data.get('subject')
-    score = data.get('score')
-    improvement = data.get('improvement_points')
+    if not data:
+        return jsonify({"status": "error", "message": "データが空です"})
+
+    subject = data.get('subject', '')
+    score = data.get('score', 0)
+    improvement = data.get('improvement_points', '')
     
+    # JavaScriptから送られた数値を取得
+    try:
+        n_basic = int(data.get('count_basic', 0))
+        n_normal = int(data.get('count_normal', 0))
+        n_advanced = int(data.get('count_advanced', 0))
+    except (ValueError, TypeError):
+        n_basic = n_normal = n_advanced = 0
+        
+    total_questions = n_basic + n_normal + n_advanced
+
+    # AIへの指示（プロンプト）
     prompt = f"""
-    あなたはプロの学習教材作成者です。
-    以下のテスト結果に基づき、無駄な装飾を省いた実戦的な「復習問題シート」を作成してください。
-    名前欄や日付欄などの事務的な項目は一切不要です。
+あなたはプロの学習教材作成者です。
+以下のテスト結果に基づき、無駄な装飾を省いた実戦的な「復習問題シート」を作成してください。
 
-    【データ】
-    - 単元: {subject}
-    - 前回のスコア: {score}点
-    - 重点強化ポイント: {improvement}
+【テスト結果】
+- 単元: {subject}
+- スコア: {score}点
+- 重点強化ポイント: {improvement}
 
-    【プリント構成の指示】
-    
-    1. # 核心ポイントのまとめ
-       今回の単元で絶対に外せない公式や考え方を、箇条書きで簡潔にまとめてください。
-       生徒が「ここを見れば解ける」という辞書のような内容にします。
+【厳守：問題数ルール】
+1. #核心ポイントのまとめ（最重要）
+    今回のテスト結果と、単元「{subject}」の本質を突き詰めた解説を書いてください。
+    以下の3つの要素を必ず含めること：
+    - **【核心ポイント】**: 単元「{subject}」の学習で押さえるべき重要ポイントを簡潔に説明してください。
+    - **【今回のあなたの落とし穴】**: 前回の指摘事項「{improvement}」を分析し、なぜそこでミスが起きるのか、どうすれば防げるのかをピンポイントで解説してください。
+    - **【プロの解法テクニック】**: 実戦で使えるコツを伝授してください。
+2. # 復習トレーニング：以下の問題数を絶対に守ってください。
+   - 問1（基礎レベル, 教科書の例題レベル）：必ず {n_basic} 問
+   - 問2（標準レベル, 定期テストのレベル）：必ず {n_normal} 問
+   - 問3（発展レベル, 入試問題のレベル）：必ず {n_advanced} 問
+   - 合計問数：{total_questions} 問
+   ※各問題の下には「（解答欄：　　　）」を設けてください。
+3. # 【別紙】解答と解説：全問の正答とステップ解説。
 
-    2. # 復習トレーニング（問題のみ）
-       - 問1：基礎の再確認（穴埋めや単純な計算・和訳など）、5問程度
-       - 問2：類題演習（テストで間違えたパターンに似た問題）、10問程度
-       - 問3：応用チャレンジ（少しひねった発展問題）、5問程度
-       ※各問題の下には、必ず解答を書き込むための「（解答欄：　　　）」を大きめに設けてください。
-
-    3. # 【別紙】解答と解説
-       - 全問の正解を明記してください。
-       - なぜその答えになるのか、解き方の手順（ステップ）を論理的に解説してください。
-    
-    4. 【数式表記ルール】
-        1. 数式は必ず LaTeX 形式を使用し、$ $ で囲んで出力してください。
-        2. 例: xの2乗は $x^2$、分数は $\\frac{{1}}{{2}}$、ルートは $\\sqrt{{x}}$ と書くこと。
-        3. かけ算は $\\times$、わり算は $\div$ を使用してください。
-
-    【出力ルール】
-    - Markdown形式で出力すること。
-    - 余計な挨拶（「作成しました」等）は不要です。# から始めてください。
-    """
+【表記ルール】
+- 数式は LaTeX 形式を使用し、$ $ で囲んで出力すること。
+- 例: $x^2$, $\\frac{{1}}{{2}}$, $\\sqrt{{x}}$, $\\times$, $\\div$
+- Markdown形式で出力し、挨拶などの余計な文言は一切含めないでください。
+"""
     try:
         response = model.generate_content(prompt)
         return jsonify({"status": "success", "homework_content": response.text})
     except Exception as e:
+        print(f"Homework Generation Error: {e}")
         return jsonify({"status": "error", "message": str(e)})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+@app.route('/homework')
+def homework_route():
+    # ここで templates/homework.html を読み込むように指示します
+    return render_template('homework.html')
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+       ##- 問1は{c_basic}問、問2は{c_normal}問、問3は{c_advanced}問を出題してください。
+       ##- 合計で {int(c_basic) + int(c_normal) + int(c_advanced)} 問の問題を作成してください。

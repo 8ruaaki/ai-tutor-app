@@ -171,3 +171,52 @@ function confirmBackHome() {
         window.location.href = '/';
     }
 }
+
+async function generateHomework() {
+    // 1. セッションストレージから前回の採点結果を取得
+    const reportData = JSON.parse(sessionStorage.getItem('lastReport'));
+    if (!reportData) {
+        alert("採点データが見つかりません。");
+        return;
+    }
+
+    // --- ここから追加：ローディング表示を表示する ---
+    const overlay = document.getElementById('loading-overlay');
+    const statusText = document.getElementById('status-text');
+    if (overlay) {
+        overlay.style.display = 'flex';
+        if (statusText) statusText.innerText = "AIがオーダーメイド宿題を作成中です...";
+    }
+    // ------------------------------------------
+
+    // 2. 入力フォームから問題数を取得
+    const homeworkConfig = {
+        subject: sessionStorage.getItem('targetSubject') || "", // 直前の単元名
+        score: reportData.score,
+        improvement_points: reportData.improvement_points,
+        count_basic: Number(document.getElementById('count_basic').value),
+        count_normal: Number(document.getElementById('count_normal').value),
+        count_advanced: Number(document.getElementById('count_advanced').value)
+    };
+
+    // 3. APIに送信
+    try {
+        const response = await fetch('/generate_homework', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(homeworkConfig)
+        });
+
+        const result = await response.json();
+        if (result.status === 'success') {
+            // 生成された宿題の内容を保存して宿題ページへ
+            sessionStorage.setItem('generatedHomework', result.homework_content);
+            window.location.href = '/homework_page';
+        } else {
+            alert("エラー: " + result.message);
+        }
+    } catch (e) {
+        console.error(e);
+        alert("通信エラーが発生しました。");
+    }
+}

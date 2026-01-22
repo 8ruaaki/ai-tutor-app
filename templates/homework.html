@@ -43,49 +43,32 @@
         </div>
 
         <div id="homework-display" class="homework-sheet">
-            <p id="loading-msg">AIがプリントを作成中です。10秒ほどお待ちください...</p>
+            <p id="loading-msg">AIがプリントを作成中です。30秒ほどお待ちください...</p>
         </div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            const lastReport = JSON.parse(sessionStorage.getItem('lastReport'));
-            const subject = sessionStorage.getItem('targetSubject');
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // 1. main.js で保存した宿題データを取り出す
+        const homeworkContent = sessionStorage.getItem('generatedHomework');
 
-            if (!lastReport) {
-                alert("レポートデータがありません");
-                window.location.href = '/';
-                return;
-            }
+        if (!homeworkContent) {
+            // データがない場合はレポートページに戻す
+            alert("宿題データが見つかりませんでした。再度発行してください。");
+            window.location.href = '/report_page';
+            return;
+        }
 
-            try {
-                const res = await fetch('/generate_homework', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        subject: subject,
-                        score: lastReport.score,
-                        improvement_points: lastReport.improvement_points
-                    })
-                });
-                const data = await res.json();
-                
-                if (data.status === 'success') {
-                    // MarkdownをHTMLに変換して表示
-                    document.getElementById('homework-display').innerHTML = marked.parse(data.homework_content);
-                }
-            } catch (e) {
-                document.getElementById('loading-msg').innerText = "エラーが発生しました。";
-            }
-            // ★ここに追加！宿題が表示された直後に実行
-                if (window.MathJax && window.MathJax.typesetPromise) {
-                    MathJax.typesetPromise();
-                }
-        });
-    </script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        // 2. MarkdownをHTMLに変換して表示
+        // marked.parse を使って、sessionStorageの内容を流し込む
+        document.getElementById('homework-display').innerHTML = marked.parse(homeworkContent);
+
+        // 3. 数式の再描画 (MathJax)
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            MathJax.typesetPromise().catch((err) => console.log('MathJax error: ', err));
+        }
+    });
+</script>
 <script>
   window.MathJax = {
     tex: {
@@ -97,5 +80,9 @@
     }
   };
 </script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
 </body>
 </html>
