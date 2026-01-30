@@ -38,8 +38,11 @@
         <div class="no-print">
             <h1>📄 パーソナライズ宿題プリント</h1>
             <p>AIが今回のテスト結果から、あなたに最適な復習メニューを作成しました。</p>
-            <button class="print-btn" onclick="window.print()">🖨️ プリントして解く</button>
-            <button onclick="window.location.href='/'" style="background:#eee; color:#333;">トップへ戻る</button>
+            <button class="print-btn" onclick="window.print()">🖨️ プリントして解く</button><br>
+            <button onclick="window.location.href='/report_page'" style="background:#636e72; color:white; padding: 12px 25px; border-radius: 5px; cursor: pointer; border: none;">
+            ⬅ 採点レポートに戻る(宿題の再発行もこちらから可能です)
+        </button><br><br>
+            <button onclick="window.location.href='/'"  class='print-btn' style="background:#636e72; color:white; padding: 12px 25px; border-radius: 5px; cursor: pointer; border: none;">トップへ戻る</button>
         </div>
 
         <div id="homework-display" class="homework-sheet">

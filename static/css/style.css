@@ -103,6 +103,63 @@ sup {
     animation: spin 1.5s linear infinite;
 }
 
+.mode-selector-container {
+    margin-bottom: 20px;
+    font-family: sans-serif;
+}
+
+.mode-options {
+    display: flex;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+/* ラジオボタン自体は隠す */
+.mode-options input[type="radio"] {
+    display: none;
+}
+
+/* カード風のスタイル */
+.mode-card {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    border: 2px solid #ddd;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #f9f9f9;
+}
+
+.mode-card .icon {
+    font-size: 24px;
+    margin-right: 12px;
+}
+
+.mode-card .text strong {
+    display: block;
+    font-size: 16px;
+}
+
+.mode-card .text span {
+    font-size: 12px;
+    color: #666;
+}
+
+/* 選択された時のスタイル */
+input[id="mode-fast"]:checked + .mode-card {
+    border-color: #ffcc00;
+    background-color: #fffdf0;
+    box-shadow: 0 4px 10px rgba(255, 204, 0, 0.2);
+}
+
+input[id="mode-quality"]:checked + .mode-card {
+    border-color: #4a90e2;
+    background-color: #f0f7ff;
+    box-shadow: 0 4px 10px rgba(74, 144, 226, 0.2);
+}
+
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }

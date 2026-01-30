@@ -11,6 +11,7 @@ from google.oauth2.service_account import Credentials
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 # ※最新のモデル名（gemini-1.5-flash等）に合わせることを推奨します
+model1 = genai.GenerativeModel('gemini-2.5-flash-lite-preview-09-2025')
 model = genai.GenerativeModel('gemini-2.5-flash')
 
 app = Flask(__name__)
@@ -101,7 +102,10 @@ def generate_test():
         """
 
     try:
-        response = model.generate_content(prompt)
+        if is_reading_mode:
+            response = model.generate_content(prompt)
+        else:
+            response = model.generate_content(prompt)
         json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
         if json_match:
             result = json.loads(json_match.group(0))
@@ -131,9 +135,10 @@ def submit_grading():
     4. 良かった点(good_points)と改善点(improvement_points)も必ず日本語で出力してください。
     5. 良かった点(good_points)は具体的に4文で書いてください。
     6. 改善点(improvement_points)は具体的に3文で書いてください。
-    7. "ユーザー"や"あなた"などの主語は使わず、客観的な表現にしてください。
-    8. 良かった点と改善点は指導報告書に使うため、**具体的な問題に言及するのではなく**、全体を通じた総合的な内容にしてください。
-
+    7. "ユーザー"や"あなた"などの主語は使わず、ユーザーの保護者様に向けた丁寧で客観的な表現にしてください。
+    8. 良かった点と改善点は指導報告書に使うため、**具体的な問題に言及するのではなく**、全体を通じた総合的な内容を一般論で述べてください。
+    9. です・ます調で書いてください。
+    10. **読み手は具体的な問題を知っているわけではない**ことを念頭に置いてください。
     【出力形式（これ以外の文字は一切出力しないでください）】
     {{
       "score": 点数(0-100),
@@ -164,6 +169,13 @@ def generate_homework():
     data = request.json
     if not data:
         return jsonify({"status": "error", "message": "データが空です"})
+    # --- 追加：モードの取得とモデルの選択 ---
+    # フロントエンドの radio ボタンの value ('fast' または 'quality') を受け取る
+    mode = data.get('mode', 'quality') 
+    
+    # model1 は高速な flash-lite、model は標準の flash を使用
+    selected_model = model1 if mode == 'fast' else model
+    # ------------------------------------------
 
     subject = data.get('subject', '')
     score = data.get('score', 0)
@@ -182,20 +194,22 @@ def generate_homework():
     # AIへの指示（プロンプト）
     prompt = f"""
 あなたはプロの学習教材作成者です。
-以下のテスト結果に基づき、{improvement}に基づいた、無駄な装飾を省いた実戦的な「復習問題シート」を作成してください。
+以下のテスト結果に基づき、{improvement}に基づいた、「復習問題シート」を作成してください。
+問題の精度を非常に高くし、学習効果を最大化することを目指してください。
+改行を適切に入れ、見やすい形式で出力してください。
 
 【テスト結果】
+- 学年・教科: {subject}
 - 単元: {subject}
 - スコア: {score}点
 - 重点強化ポイント: {improvement}
 
 【厳守：問題数ルール】
 1. # 復習トレーニング：以下の問題数を絶対に守ってください。
-   - 問1（基礎レベル, 教科書の例題レベル）：必ず {n_basic} 問
-   - 問2（標準レベル, 定期テストのレベル）：必ず {n_normal} 問
-   - 問3（発展レベル, 入試問題のレベル）：必ず {n_advanced} 問
+   - 問1（基礎レベル, 定期テストレベル）：必ず {n_basic} 問
+   - 問2（標準レベル, 中堅公の入試問題のレベル）：必ず {n_normal} 問
+   - 問3（発展レベル, 難関校の入試問題のレベル）：必ず {n_advanced} 問
    - 合計問数：{total_questions} 問
-   ※各問題の下には「（解答欄：　　　）」を設け、十分なスペースを確保してください。
 2. # 【別紙】解答と解説：全問の正答と詳しい丁寧な解説。
 
 【表記ルール】
@@ -204,7 +218,7 @@ def generate_homework():
 - Markdown形式で出力し、挨拶などの余計な文言は一切含めないでください。
 """
     try:
-        response = model.generate_content(prompt)
+        response = selected_model.generate_content(prompt)
         return jsonify({"status": "success", "homework_content": response.text})
     except Exception as e:
         print(f"Homework Generation Error: {e}")

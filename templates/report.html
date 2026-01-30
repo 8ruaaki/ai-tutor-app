@@ -64,6 +64,28 @@
 
 
      <form id="homework-form">
+    <div class="mode-selector-container">
+    <label>生成モードの選択:</label>
+    <div class="mode-options">
+        <input type="radio" id="mode-fast" name="gen_mode" value="fast">
+        <label for="mode-fast" class="mode-card fast">
+            <span class="icon">⚡</span>
+            <div class="text">
+                <strong>爆速モード</strong>
+                <span>一問一答・基礎ドリル向け</span>
+            </div>
+        </label>
+
+        <input type="radio" id="mode-quality" name="gen_mode" value="quality" checked>
+        <label for="mode-quality" class="mode-card quality">
+            <span class="icon">💎</span>
+            <div class="text">
+                <strong>じっくりモード</strong>
+                <span>応用・解説重視・思考力UP</span>
+            </div>
+        </label>
+    </div>
+</div>
     <div class="input-group">
         <label>基礎問題（問）：</label>
         <input type="number" id="count_basic" name="count_basic" value="2" min="0" max="30" style="width: 60px;">

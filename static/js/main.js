@@ -175,6 +175,9 @@ function confirmBackHome() {
 async function generateHomework() {
     // 1. セッションストレージから前回の採点結果を取得
     const reportData = JSON.parse(sessionStorage.getItem('lastReport'));
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
+    
     if (!reportData) {
         alert("採点データが見つかりません。");
         return;
@@ -196,7 +199,8 @@ async function generateHomework() {
         improvement_points: reportData.improvement_points,
         count_basic: Number(document.getElementById('count_basic').value),
         count_normal: Number(document.getElementById('count_normal').value),
-        count_advanced: Number(document.getElementById('count_advanced').value)
+        count_advanced: Number(document.getElementById('count_advanced').value),
+        mode: document.querySelector('input[name="gen_mode"]:checked').value
     };
 
     // 3. APIに送信
@@ -215,7 +219,8 @@ async function generateHomework() {
         } else {
             alert("エラー: " + result.message);
         }
-    } catch (e) {
+    } 
+    catch (e) {
         console.error(e);
         alert("通信エラーが発生しました。");
     }
