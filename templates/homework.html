@@ -52,21 +52,58 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // 1. main.js で保存した宿題データを取り出す
-        const homeworkContent = sessionStorage.getItem('generatedHomework');
+        const homeworkString = sessionStorage.getItem('generatedHomework');
 
-        if (!homeworkContent) {
-            // データがない場合はレポートページに戻す
+        if (!homeworkString) {
             alert("宿題データが見つかりませんでした。再度発行してください。");
             window.location.href = '/report_page';
             return;
         }
 
-        // 2. MarkdownをHTMLに変換して表示
-        // marked.parse を使って、sessionStorageの内容を流し込む
-        document.getElementById('homework-display').innerHTML = marked.parse(homeworkContent);
+        try {
+            const data = JSON.parse(homeworkString);
+            const container = document.getElementById('homework-display');
+            
+            let html = `<h2>${data.homework_title || "復習プリント"}</h2>`;
+            
+            html += `<div class="homework-questions">`;
+            data.questions.forEach((q, i) => {
+                const qText = (q.question || "").replace(/\n/g, '<br>');
+                html += `
+                <div style="margin-bottom: 25px; border-bottom: 1px dashed #ccc; padding-bottom: 15px;">
+                    <div style="font-weight: bold; margin-bottom: 10px;">
+                        <span style="background:var(--primary-color); color:white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 5px;">${q.type || "問題"}</span>
+                        問${i + 1}:
+                    </div>
+                    <div style="line-height: 1.6;">
+                        ${qText}
+                    </div>
+                </div>`;
+            });
+            html += `</div>`;
+            
+            html += `<div class="homework-answers" style="margin-top: 50px; border-top: 3px double #333; padding-top: 20px;">`;
+            html += `<h2>【別紙】解答と解説</h2>`;
+            data.questions.forEach((q, i) => {
+                const explText = (q.explanation || "").replace(/\n/g, '<br>');
+                html += `
+                <div style="margin-bottom: 25px; background: #f9f9f9; padding: 15px; border-radius: 8px;">
+                    <strong style="color:var(--primary-color);">問${i + 1} の解答:</strong> <span style="font-weight:bold; color:#f44336; font-size:1.1rem; margin-left:10px;">${q.correct_answer}</span>
+                    <div style="margin-top: 10px; font-size: 0.95rem; line-height: 1.6;">
+                        <strong>【解説】</strong><br>
+                        ${explText}
+                    </div>
+                </div>`;
+            });
+            html += `</div>`;
 
-        // 3. 数式の再描画 (MathJax)
+            container.innerHTML = html;
+
+        } catch(e) {
+            document.getElementById('homework-display').innerHTML = `<p style="color:red;">データの読み込みに失敗しました。</p>`;
+            console.error(e);
+        }
+
         if (window.MathJax && window.MathJax.typesetPromise) {
             MathJax.typesetPromise().catch((err) => console.log('MathJax error: ', err));
         }

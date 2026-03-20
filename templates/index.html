@@ -1,44 +1,72 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Tutor - 自習システム</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        .hero { text-align: center; padding: 40px 0; }
+        .hero {
+            text-align: center;
+            padding: 40px 0;
+        }
+
         .main-card {
             background: var(--card-bg);
             max-width: 480px;
             margin: 0 auto;
             padding: 30px;
             border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
         }
-        .input-group { margin-bottom: 20px; }
-        label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 0.9rem; }
-        .info-badge {
-            display: none; background: #eef2ff; color: var(--primary-color);
-            padding: 8px; border-radius: 5px; font-size: 0.8rem; margin-top: 10px; font-weight: bold;
-        }
-        .start-btn { width: 100%; padding: 15px; background: var(--primary-color); color: white; font-size: 1.1rem; }
 
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .info-badge {
+            display: none;
+            background: #eef2ff;
+            color: var(--primary-color);
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .start-btn {
+            width: 100%;
+            padding: 15px;
+            background: var(--primary-color);
+            color: white;
+            font-size: 1.1rem;
+        }
     </style>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-<script>
-  window.MathJax = {
-    tex: {
-      inlineMath: [['$', '$'], ['\\(', '\\)']],
-      displayMath: [['$$', '$$'], ['\\[', '\\]']]
-    },
-    options: {
-      skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
-    }
-  };
-</script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+            }
+        };
+    </script>
 </head>
+
 <body>
     <div class="container">
         <div class="hero">
@@ -48,8 +76,9 @@
 
         <div class="main-card">
             <div class="input-group">
-                <label for="subject">学習単元</label>
-                <input type="text" id="subject" placeholder="※長文問題を出したい場合は”長文”という言葉を含めること。" oninput="handleModeSwitch()" autocomplete="off">
+                <label for="subject">学習単元（できるだけ詳細に）</label>
+                <input type="text" id="subject" placeholder="※長文問題を出したい場合は”長文”という言葉を含めること。" oninput="handleModeSwitch()"
+                    autocomplete="off">
                 <div id="reading-info" class="info-badge">📖 長文読解モード：5問固定となります</div>
             </div>
 
@@ -80,7 +109,7 @@
             const subject = document.getElementById('subject').value;
             const countSelect = document.getElementById('question-count');
             const info = document.getElementById('reading-info');
-            
+
             if (subject.includes('長文')) {
                 countSelect.value = "5";
                 info.style.display = 'block';
@@ -94,7 +123,7 @@
         function startTest() {
             const subject = document.getElementById('subject').value;
             if (!subject) return alert("単元を入力してください");
-            
+
             sessionStorage.setItem('targetSubject', subject);
             sessionStorage.setItem('targetLevel', document.getElementById('level').value);
             sessionStorage.setItem('targetCount', document.getElementById('question-count').value);
@@ -102,4 +131,5 @@
         }
     </script>
 </body>
+
 </html>

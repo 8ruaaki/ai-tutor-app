@@ -57,7 +57,8 @@ def generate_test():
         1. 本文を1つ作成。(必要に応じてタイトルも)
         2. 問題は必ず5問。
         3. 重要：各設問は【必ず4択の選択式】にしてください。
-        4. 出力JSON形式を厳守：
+        4. 傍線部（下線部）を示す際は、マークダウン（**等）ではなく、必ずHTMLタグの `<u>傍線部</u>` を使用してください。
+        5. 出力JSON形式を厳守：
         {{
           "passage_title": "..",
           "passage_body": "..",
@@ -80,17 +81,23 @@ def generate_test():
         1. 【合計 {count} 問】の小テストを作成してください。
         2. 1つの設問（ID）につき、解くべき問題は「絶対に1つだけ」にしてください。(1)(2)などの小問分けは厳禁です。
         3. 記述問題の解答欄は1つしかありません。解答も1つだけにしてください。
-        4. 選択式（4択）、空欄補充、記述式をバランスよく混ぜてください。
+        4. 選択式（4択）、空欄補充（穴埋め）、記述式をバランスよく混ぜてください。
+        5. **空欄補充（穴埋め）問題を出題する場合は、必ず `reflection_and_validation` 内で「完成した正しい全文」と「抜き出す正解部分」を先に言語化し、その「抜き出す正解部分」をそのままそっくり `(　　)` に単純置換して問題文（question）を生成してください。**
+        6. 「一文字のひらがなを入れよ」などの文字数指定や制限は、AI自身が計算を誤る原因となるため、絶対に条件にしないでください。
         
-        【数式・表記ルール】
+        【数式・表記・改行ルール】
         1. 数式は必ず LaTeX 形式を使用し、$ $ で囲んで出力してください。
            例: $x^2$, $\\frac{{1}}{{2}}$, $\\sqrt{{x}}$, $\\times$, $\\div$
         2. 2乗を ^2 と書くようなプログラミング的表記は禁止です。
+        3. 傍線部（下線部）を示す際は、マークダウン（**等）ではなく、必ずHTMLタグの `<u>傍線部</u>` を使用してください。
+        4. 問題文の中に選択肢を含める場合や、複数の情報を提示する場合は、適宜 `\n` (改行) を入れて見やすくしてください。
+        5. **出力する各問題の作成前に、必ず内部で事実確認、論理破綻、文法ミスの検証を `reflection_and_validation` フィールドで簡潔に（2〜3文で）行ってから作問してください。短時間で生成できるよう冗長な推論は避けてください。**
         
         【出力JSONフォーマット（厳守）】
         {{
           "questions": [
             {{
+              "reflection_and_validation": "問題の意図、事実確認、複数解釈が生じないかの簡潔な検証プロセスを記載",
               "question": "問題文（数式は$ $で囲む）",
               "choices": ["選択肢1", "選択肢2", "選択肢3", "選択肢4"], 
               "correct_answer": "正解の文字列（選択肢がある場合は、選択肢の中の1つと完全一致させること）"
@@ -103,15 +110,17 @@ def generate_test():
 
     try:
         if is_reading_mode:
-            response = model.generate_content(prompt)
+            response = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"), request_options={"timeout": 120})
         else:
-            response = model.generate_content(prompt)
-        json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
-        if json_match:
-            result = json.loads(json_match.group(0))
-            result["is_reading_mode"] = is_reading_mode
-            result["questions"] = result["questions"][:target_count]
-            return jsonify({"status": "success", **result})
+            response = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"), request_options={"timeout": 120})
+        
+        # response_mime_typeにより確実にJSONが返ってくるため、直接loadsする
+        result = json.loads(response.text)
+        result["is_reading_mode"] = is_reading_mode
+        result["questions"] = result["questions"][:target_count]
+        return jsonify({"status": "success", **result})
+    except json.JSONDecodeError as e:
+        return jsonify({"status": "error", "message": "JSON形式の抽出に失敗しました: " + str(e)})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
@@ -122,42 +131,47 @@ def submit_grading():
     data = request.json
     # AIへの指示をより厳密にします
     prompt = f"""
-    あなたは厳格な採点官です。以下のデータを正確に採点し、必ず指定されたJSON形式のみを出力してください。
+    あなたは学習指導報告書を作成するプロの講師です。以下の学習ログに基づき、保護者様へお送りする「指導報告文」を生成してください。
     
     【データ】
-    問題: {json.dumps(data['questions'], ensure_ascii=False)}
-    ユーザー解答: {json.dumps(data['answers'], ensure_ascii=False)}
+    学習内容: {json.dumps(data['questions'], ensure_ascii=False)}
+    生徒の解答: {json.dumps(data['answers'], ensure_ascii=False)}
     
-    【採点ルール】
+    【採点・文言ルール】
     1. is_correctは、解答が正解と一致しているか、記述式なら意味が通じればtrueにしてください。
-    2. user_answerには「ユーザーが入力した値」を、correct_answerには「本来の正解」を入れてください。
-    3. 解説(explanation)は日本語で簡潔に書いてください。
-    4. 良かった点(good_points)と改善点(improvement_points)も必ず日本語で出力してください。
-    5. 良かった点(good_points)は具体的に4文で書いてください。
-    6. 改善点(improvement_points)は具体的に3文で書いてください。
-    7. "ユーザー"や"あなた"などの主語は使わず、ユーザーの保護者様に向けた丁寧で客観的な表現にしてください。
-    8. 良かった点と改善点は指導報告書に使うため、**具体的な問題に言及するのではなく**、全体を通じた総合的な内容を一般論で述べてください。
-    9. です・ます調で書いてください。
-    10. **読み手は具体的な問題を知っているわけではない**ことを念頭に置いてください。
-    【出力形式（これ以外の文字は一切出力しないでください）】
+    2. 解説(explanation)は日本語で簡潔に書いてください。
+    3. 良かった点(good_points)と、改善点または今後の展望(improvement_points)は必ず日本語、です・ます調で出力してください。
+    4. 良かった点(good_points)は「授業中の理解度や取り組みの姿勢」として4文で書いてください。
+    5. **改善点(improvement_points)は3文で書いてください。もし点数が100点（満点）の場合は、改善点ではなく「今後の展望・次週への目標」として書いてください。**
+    6. 保護者様は「これが単発のテスト（小テスト）」であることは知りません。「今日の授業中での様子や習得度」として自然に報告してください。
+    7. **「高い正答率」「全問正解」「テスト結果」といった試験的な言葉の使用は厳禁です。** 代わりに「内容をスムーズに整理できていました」「着実に身についている様子でした」等の表現を使ってください。
+    8. 具体的な問題番号（問1など）や問題文の内容を細かく引用せず、全体を通じた抽象的・総合的な評価を一般論で述べてください。
+    9. 主語に「ユーザー」や「あなた」などは使わず、丁寧で客観的な表現にしてください。
+    10. **採点の際は、必ず `grading_reasoning` フィールドにて「なぜ正答なのか」「なぜユーザーの解答が◯/×なのか」を1〜2文で自問自答してから `is_correct` を判定してください。**
+    
+    【出力JSONフォーマット】
     {{
-      "score": 点数(0-100),
+      "score": 合計点数(0-100),
       "good_points": "...",
       "improvement_points": "...",
       "details": [
-        {{"question": "..", "user_answer": "..", "correct_answer": "..", "is_correct": true/false, "explanation": ".."}}
+        {{
+          "question": "..",
+          "user_answer": "..",
+          "correct_answer": "..",
+          "grading_reasoning": "採点の根拠や論理的ステップを簡潔に記載",
+          "is_correct": true/false,
+          "explanation": ".."
+        }}
       ]
     }}
     """
     try:
-        response = model.generate_content(prompt)
-        # AIがJSON以外の文字を混ぜても抽出できるように re.DOTALL を使用
-        json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
-        if json_match:
-            result = json.loads(json_match.group(0))
-            return jsonify({"status": "success", "result": result})
-        else:
-            return jsonify({"status": "error", "message": "JSON形式の抽出に失敗しました"})
+        response = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"), request_options={"timeout": 120})
+        result = json.loads(response.text)
+        return jsonify({"status": "success", "result": result})
+    except json.JSONDecodeError as e:
+        return jsonify({"status": "error", "message": "JSON形式の解析に失敗しました"})
     except Exception as e:
         print(f"Server Error: {e}")
         return jsonify({"status": "error", "message": str(e)})
@@ -180,7 +194,14 @@ def generate_homework():
     subject = data.get('subject', '')
     score = data.get('score', 0)
     improvement = data.get('improvement_points', '')
+    details = data.get('details', [])
     
+    # ユーザーが間違えた問題などの詳細テキストを作成
+    details_text = ""
+    for idx, d in enumerate(details):
+        is_co = "正解" if d.get('is_correct') else "不正解"
+        details_text += f"問{idx+1}: {d.get('question')}\nユーザーの解答: {d.get('user_answer')} (正答: {d.get('correct_answer')}) - {is_co}\n\n"
+
     # JavaScriptから送られた数値を取得
     try:
         n_basic = int(data.get('count_basic', 0))
@@ -193,37 +214,49 @@ def generate_homework():
 
     # AIへの指示（プロンプト）
     prompt = f"""
-あなたはプロの学習教材作成者です。
-以下のテスト結果に基づき、{improvement}に基づいた、「復習問題シート」を作成してください。
-問題の精度を非常に高くし、学習効果を最大化することを目指してください。
-改行を適切に入れ、見やすい形式で出力してください。
+あなたはプロの学習教材作成者です。以下の【テスト結果】と【前回の解答詳細】に基づき、「復習問題シート」のJSONデータを作成してください。
+ユーザーが間違えた問題を分析して、基礎が抜けている部分の類題や補強問題を中心に必ず出力してください。
 
 【テスト結果】
-- 学年・教科: {subject}
-- 単元: {subject}
+- 学年・教科・単元: {subject}
 - スコア: {score}点
 - 重点強化ポイント: {improvement}
 
-【厳守：問題数ルール】
-1. # 復習トレーニング：以下の問題数を絶対に守ってください。
-   - 問1（基礎レベル, 定期テストレベル）：必ず {n_basic} 問
-   - 問2（標準レベル, 中堅公の入試問題のレベル）：必ず {n_normal} 問
-   - 問3（発展レベル, 難関校の入試問題のレベル）：必ず {n_advanced} 問
-   - 合計問数：{total_questions} 問
-2. # 【別紙】解答と解説：全問の正答と詳しい丁寧な解説。
+【前回の解答詳細】
+{details_text}
 
-【表記ルール】
-- 数式は LaTeX 形式を使用し、$ $ で囲んで出力すること。
-- 例: $x^2$, $\\frac{{1}}{{2}}$, $\\sqrt{{x}}$, $\\times$, $\\div$
-- Markdown形式で出力し、挨拶などの余計な文言は一切含めないでください。
+【厳守：構成ルール】
+1. 以下の問題数を絶対に守り、合計 {total_questions} 問を作成してください。（問1:基礎 {n_basic}問, 問2:標準 {n_normal}問, 問3:発展 {n_advanced}問）
+2. 数式は必ず LaTeX 形式を使用し、$ $ で囲んで出力してください。（例: $x^2$, $\\frac{{1}}{{2}}$, $\\sqrt{{x}}$）
+3. 傍線部（下線部）を示す際は、マークダウンではなく必ずHTMLタグの `<u>傍線部</u>` を使用してください。
+4. **空欄補充（穴埋め）問題を出題する場合は、必ず `drafting_process` 内で「完成した正しい全文」と「抜き出す正解部分」を先に言語化し、その「抜き出す正解部分」をそのままそっくり `(　　)` に単純置換して問題文（question）を生成してください。**
+5. 「一文字のひらがなを入れよ」などの文字数指定や制限は、AI自身が計算を誤る原因となるため、絶対に条件にしないでください。
+6. 問題文に改行が必要な場合（選択肢を列挙する場合など）は、適宜 `\n` を挿入してください。
+5. Markdownの挨拶などは一切含めないでください。
+6. **問題を生成する前に、必ず `drafting_process` フィールドにて、「ユーザーの誤答の根本原因にアプローチできているか」「事実誤認、文法ミス、論理破綻がないか」を簡潔に（2〜3文で）検証してください。短時間で生成できるよう冗長な推論は避けてください。**
+7. 解説（explanation）を記述してから正答（correct_answer）を記述することで、論理ステップを踏ませてください。
+8. 問題文（question）は具体的に記述し、生徒が「何をどう答えればよいか」迷わない明確な指示文を含めてください。
+
+【出力JSONフォーマット】（以下のキーだけで構成すること）
+{{
+  "homework_title": "あなた専用の復習プリント",
+  "questions": [
+    {{
+      "drafting_process": "この問題を出題する背景と、事実・文法の簡潔な自己検証プロセス",
+      "type": "基礎 または 標準 または 発展",
+      "question": "問題文をここに詳細に記述",
+      "explanation": "解き方の解説をここに記述",
+      "correct_answer": "正答をここに記述"
+    }}
+  ]
+}}
 """
     try:
-        response = selected_model.generate_content(prompt)
-        return jsonify({"status": "success", "homework_content": response.text})
+        response = selected_model.generate_content(prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"), request_options={"timeout": 120})
+        result = json.loads(response.text)
+        return jsonify({"status": "success", "homework_data": result})
     except Exception as e:
         print(f"Homework Generation Error: {e}")
-        return jsonify({"status": "error", "message": str(e)})
-    except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
 @app.route('/homework')

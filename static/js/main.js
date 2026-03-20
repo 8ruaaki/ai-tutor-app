@@ -66,6 +66,7 @@ async function initializeTest() {
 // main.js の中の renderQuestionHTML 関数を差し替え
 function renderQuestionHTML(q, i) {
     let inputHTML = '';
+    const qText = (q.question || "").replace(/\n/g, '<br>');
     
     // choicesが存在し、かつ配列に中身がある場合
     if (q.choices && Array.isArray(q.choices) && q.choices.length > 0) {
@@ -87,7 +88,8 @@ function renderQuestionHTML(q, i) {
     
     return `
         <div class="question-card" style="margin-bottom: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-            <p><strong>問 ${i + 1}:</strong> ${q.question}</p>
+            <div style="line-height: 1.6; margin-bottom: 10px;"><strong>問 ${i + 1}:</strong></div>
+            <div style="line-height: 1.6; margin-bottom: 15px;">${qText}</div>
             ${inputHTML}
         </div>`;
 }
@@ -192,14 +194,26 @@ async function generateHomework() {
     }
     // ------------------------------------------
 
-    // 2. 入力フォームから問題数を取得
+    // 2. 入力フォームから問題数を取得し、合計数を制限する
+    const countBasic = Number(document.getElementById('count_basic').value);
+    const countNormal = Number(document.getElementById('count_normal').value);
+    const countAdvanced = Number(document.getElementById('count_advanced').value);
+    const totalCount = countBasic + countNormal + countAdvanced;
+
+    if (totalCount > 30) {
+        alert("タイムアウトを防ぐため、1度に作成できる問題数は合計30問までです。");
+        if (overlay) overlay.style.display = 'none';
+        return;
+    }
+
     const homeworkConfig = {
-        subject: sessionStorage.getItem('targetSubject') || "", // 直前の単元名
+        subject: sessionStorage.getItem('targetSubject') || "", 
         score: reportData.score,
         improvement_points: reportData.improvement_points,
-        count_basic: Number(document.getElementById('count_basic').value),
-        count_normal: Number(document.getElementById('count_normal').value),
-        count_advanced: Number(document.getElementById('count_advanced').value),
+        details: reportData.details, // AIのハルシネーション防止用
+        count_basic: countBasic,
+        count_normal: countNormal,
+        count_advanced: countAdvanced,
         mode: document.querySelector('input[name="gen_mode"]:checked').value
     };
 
@@ -213,8 +227,8 @@ async function generateHomework() {
 
         const result = await response.json();
         if (result.status === 'success') {
-            // 生成された宿題の内容を保存して宿題ページへ
-            sessionStorage.setItem('generatedHomework', result.homework_content);
+            // 生成されたJSONを文字列として保存
+            sessionStorage.setItem('generatedHomework', JSON.stringify(result.homework_data));
             window.location.href = '/homework_page';
         } else {
             alert("エラー: " + result.message);
@@ -222,6 +236,9 @@ async function generateHomework() {
     } 
     catch (e) {
         console.error(e);
-        alert("通信エラーが発生しました。");
+        alert("通信エラー、またはタイムアウトが発生しました。問題数を減らして再度お試しください。");
+    } finally {
+        clearTimeout(timeoutId);
+        if (overlay) overlay.style.display = 'none';
     }
 }
