@@ -25,6 +25,34 @@ def get_sheet():
     except Exception as e:
         return None
 
+# RAG用データ取得 (問題集と単語リスト)
+def get_rag_data():
+    questions_id = os.getenv("QUESTIONS_SHEET_ID")
+    vocab_id = os.getenv("VOCAB_SHEET_ID")
+    
+    if not questions_id or not vocab_id or questions_id == "ここにIDを書く" or vocab_id == "ここにIDを書く":
+        return ""
+        
+    try:
+        scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+        creds = Credentials.from_service_account_file('credentials.json', scopes=scopes)
+        client = gspread.authorize(creds)
+        
+        q_sheet = client.open_by_key(questions_id).sheet1
+        v_sheet = client.open_by_key(vocab_id).sheet1
+        
+        # 上限を設けて取得（プロンプト長制限のため）
+        q_data = q_sheet.get_all_values()[:50]
+        v_data = v_sheet.get_all_values()[:50]
+        
+        q_str = "\n".join([", ".join(row) for row in q_data])
+        v_str = "\n".join([", ".join(row) for row in v_data])
+        
+        return f"\n【参考データ（問題集）】\n{q_str}\n\n【参考データ（単語リスト）】\n{v_str}\n"
+    except Exception as e:
+        print("RAG Data Fetch Error:", e)
+        return ""
+
 # --- 各ページルーティング ---
 @app.route('/')
 def index(): return render_template('index.html')
@@ -38,85 +66,64 @@ def report_page(): return render_template('report.html')
 @app.route('/homework_page')
 def homework_page(): return render_template('homework.html')
 
-# --- API: テスト生成 (1問1回答・長文5問固定) ---
+# --- API: テスト生成 (英語文法4択・RAG・再検証) ---
 @app.route('/generate_test', methods=['POST'])
 def generate_test():
     data = request.json
     subject = data.get('subject', '')
-    level = data.get('level', '初級')
+    level = data.get('level', '中級')
     count = int(data.get('count', 5))
     
-    is_reading_mode = "長文" in subject
+    rag_context = get_rag_data()
 
-    if is_reading_mode:
-        target_count = 5
-        prompt = f"""
-        単元: {subject} 難易度: {level}
-        【構成ルール】
-        1. 本文を1つ作成。(必要に応じてタイトルも)
-        2. 問題は必ず5問。
-        3. 重要：各設問は【必ず4択の選択式】にしてください。
-        4. 傍線部（下線部）を示す際は、マークダウン（**等）ではなく、必ずHTMLタグの `<u>傍線部</u>` を使用してください。
-        5. 出力JSON形式を厳守：
+    prompt = f"""
+    単元: {subject}
+    難易度: {level}
+    {rag_context}
+    
+    あなたは英語のプロの講師です。ユーザーが指定した単元と難易度に基づき、【英語の文法4択問題】を合計 {count} 問作成してください。必要に応じて上記の【参考データ】を活用してください。
+    
+    【構成ルール】
+    1. 全ての問題を必ず「英語の文法4択問題」にしてください。
+    2. 1つの設問につき解くべき問題は絶対に1つだけにしてください。
+    3. `choices`の配列には必ず4つの選択肢を含めてください。
+    4. `correct_answer` には、正解となる選択肢の文字列を完全に一致する形で1つだけ記述してください。
+    5. 空欄補充（穴埋め）問題を出題する場合は、正解をそのままそっくり `(　　)` に置換してください。
+    
+    【出力JSONフォーマット】
+    {{
+      "questions": [
         {{
-          "passage_title": "..",
-          "passage_body": "..",
-          "questions": [
-            {{
-              "question": "問題文",
-              "choices": ["選択肢1", "選択肢2", "選択肢3", "選択肢4"],
-              "correct_answer": "正解の文字列"
-            }}
-          ]
+          "reflection_and_validation": "問題の意図、事実確認、複数解釈が生じないかの簡潔な検証プロセスを記載",
+          "question": "問題文",
+          "choices": ["選択肢1", "選択肢2", "選択肢3", "選択肢4"], 
+          "correct_answer": "正解の文字列"
         }}
-        """
-    else:
-        target_count = count
-        prompt = f"""
-        単元: {subject}
-        難易度: {level}
-        
-        【構成ルール】
-        1. 【合計 {count} 問】の小テストを作成してください。
-        2. 1つの設問（ID）につき、解くべき問題は「絶対に1つだけ」にしてください。(1)(2)などの小問分けは厳禁です。
-        3. 記述問題の解答欄は1つしかありません。解答も1つだけにしてください。
-        4. 選択式（4択）、空欄補充（穴埋め）、記述式をバランスよく混ぜてください。
-        5. **空欄補充（穴埋め）問題を出題する場合は、必ず `reflection_and_validation` 内で「完成した正しい全文」と「抜き出す正解部分」を先に言語化し、その「抜き出す正解部分」をそのままそっくり `(　　)` に単純置換して問題文（question）を生成してください。**
-        6. 「一文字のひらがなを入れよ」などの文字数指定や制限は、AI自身が計算を誤る原因となるため、絶対に条件にしないでください。
-        
-        【数式・表記・改行ルール】
-        1. 数式は必ず LaTeX 形式を使用し、$ $ で囲んで出力してください。
-           例: $x^2$, $\\frac{{1}}{{2}}$, $\\sqrt{{x}}$, $\\times$, $\\div$
-        2. 2乗を ^2 と書くようなプログラミング的表記は禁止です。
-        3. 傍線部（下線部）を示す際は、マークダウン（**等）ではなく、必ずHTMLタグの `<u>傍線部</u>` を使用してください。
-        4. 問題文の中に選択肢を含める場合や、複数の情報を提示する場合は、適宜 `\n` (改行) を入れて見やすくしてください。
-        5. **出力する各問題の作成前に、必ず内部で事実確認、論理破綻、文法ミスの検証を `reflection_and_validation` フィールドで簡潔に（2〜3文で）行ってから作問してください。短時間で生成できるよう冗長な推論は避けてください。**
-        
-        【出力JSONフォーマット（厳守）】
-        {{
-          "questions": [
-            {{
-              "reflection_and_validation": "問題の意図、事実確認、複数解釈が生じないかの簡潔な検証プロセスを記載",
-              "question": "問題文（数式は$ $で囲む）",
-              "choices": ["選択肢1", "選択肢2", "選択肢3", "選択肢4"], 
-              "correct_answer": "正解の文字列（選択肢がある場合は、選択肢の中の1つと完全一致させること）"
-            }}
-          ]
-        }}
-        ※選択肢がない問題（記述式など）の場合は、"choices": [] と空の配列にしてください。
-        ※キー名は必ず "question", "choices", "correct_answer" の3つを使用してください。
-        """
+      ]
+    }}
+    """
 
     try:
-        if is_reading_mode:
-            response = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"), request_options={"timeout": 120})
-        else:
-            response = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"), request_options={"timeout": 120})
+        response = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"), request_options={"timeout": 120})
+        initial_json = response.text
         
-        # response_mime_typeにより確実にJSONが返ってくるため、直接loadsする
-        result = json.loads(response.text)
-        result["is_reading_mode"] = is_reading_mode
-        result["questions"] = result["questions"][:target_count]
+        verify_prompt = f"""
+        以下のJSON形式の英語文法問題集を確認し、条件を満たしているか検証・修正して、再度JSON形式で出力してください。API応答の高速化のため、検証結果の理由等は含めず、純粋なJSONデータのみを出力してください。
+        
+        【検証条件】
+        1. 全ての問題が「英語の文法4択問題」であるか。
+        2. 全ての問題に置いて `choices` の配列要素が正確に4つであるか。
+        3. `correct_answer` が `choices` の中の1つと完全に一致しているか。
+        4. 問題として成立しており、複数正解が存在しないか。
+        
+        【元のデータ】
+        {initial_json}
+        """
+        verify_response = model.generate_content(verify_prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"), request_options={"timeout": 120})
+        
+        result = json.loads(verify_response.text)
+        result["is_reading_mode"] = False
+        result["questions"] = result["questions"][:count]
         return jsonify({"status": "success", **result})
     except json.JSONDecodeError as e:
         return jsonify({"status": "error", "message": "JSON形式の抽出に失敗しました: " + str(e)})
@@ -124,7 +131,6 @@ def generate_test():
         return jsonify({"status": "error", "message": str(e)})
 
 # --- API: 採点 ---
-# app.py の submit_grading 関数を以下に書き換えてください
 @app.route('/submit_grading', methods=['POST'])
 def submit_grading():
     data = request.json
@@ -189,33 +195,26 @@ def submit_grading():
         print(f"Server Error: {e}")
         return jsonify({"status": "error", "message": str(e)})
 
-# --- API: 宿題生成 (修正版) ---
+# --- API: 宿題生成 (英語文法4択・RAG・再検証) ---
 @app.route('/generate_homework', methods=['POST'])
 def generate_homework():
-    # request.form ではなく request.json を使用してデータを取得
     data = request.json
     if not data:
         return jsonify({"status": "error", "message": "データが空です"})
-    # --- 追加：モードの取得とモデルの選択 ---
-    # フロントエンドの radio ボタンの value ('fast' または 'quality') を受け取る
-    mode = data.get('mode', 'quality') 
     
-    # model1 は高速な flash-lite、model は標準の flash を使用
+    mode = data.get('mode', 'quality') 
     selected_model = model1 if mode == 'fast' else model
-    # ------------------------------------------
 
     subject = data.get('subject', '')
     score = data.get('score', 0)
     improvement = data.get('improvement_points', '')
     details = data.get('details', [])
     
-    # ユーザーが間違えた問題などの詳細テキストを作成
     details_text = ""
     for idx, d in enumerate(details):
         is_co = "正解" if d.get('is_correct') else "不正解"
         details_text += f"問{idx+1}: {d.get('question')}\nユーザーの解答: {d.get('user_answer')} (正答: {d.get('correct_answer')}) - {is_co}\n\n"
 
-    # JavaScriptから送られた数値を取得
     try:
         n_basic = int(data.get('count_basic', 0))
         n_normal = int(data.get('count_normal', 0))
@@ -224,14 +223,15 @@ def generate_homework():
         n_basic = n_normal = n_advanced = 0
         
     total_questions = n_basic + n_normal + n_advanced
+    rag_context = get_rag_data()
 
-    # AIへの指示（プロンプト）
     prompt = f"""
-あなたはプロの学習教材作成者です。以下の【テスト結果】と【前回の解答詳細】に基づき、「復習問題シート」のJSONデータを作成してください。
-ユーザーが間違えた問題を分析して、基礎が抜けている部分の類題や補強問題を中心に必ず出力してください。
+あなたは英語のプロの学習教材作成者です。以下の【テスト結果】と【前回の解答詳細】に基づき、「英語文法4択問題の復習プリント」のJSONデータを作成してください。
+必要に応じて以下の【参考データ】を活用してください。
+{rag_context}
 
 【テスト結果】
-- 学年・教科・単元: {subject}
+- 単元: {subject}
 - スコア: {score}点
 - 重点強化ポイント: {improvement}
 
@@ -239,23 +239,11 @@ def generate_homework():
 {details_text}
 
 【厳守：構成ルール】
-1. 以下の問題数を絶対に守り、合計 {total_questions} 問を作成してください。（問1:基礎 {n_basic}問, 問2:標準 {n_normal}問, 問3:発展 {n_advanced}問）
-2. 数式は必ず LaTeX 形式を使用し、$ $ で囲んで出力してください。（例: $x^2$, $\\frac{{1}}{{2}}$, $\\sqrt{{x}}$）
-3. 傍線部（下線部）を示す際は、マークダウンではなく必ずHTMLタグの `<u>傍線部</u>` を使用してください。
-4. **空欄補充（穴埋め）問題を出題する場合は、必ず `drafting_process` 内で「完成した正しい全文」と「抜き出す正解部分」を先に言語化し、その「抜き出す正解部分」をそのままそっくり `(　　)` に単純置換して問題文（question）を生成してください。**
-5. 「一文字のひらがなを入れよ」などの文字数指定や制限は、AI自身が計算を誤る原因となるため、絶対に条件にしないでください。
-6. 問題文に改行が必要な場合（選択肢を列挙する場合など）は、適宜 `\n` を挿入してください。
-5. Markdownの挨拶などは一切含めないでください。
-6. **問題を生成する前に、必ず `drafting_process` フィールドにて、「ユーザーの誤答の根本原因にアプローチできているか」「事実誤認、文法ミス、論理破綻がないか」を簡潔に（2〜3文で）検証してください。短時間で生成できるよう冗長な推論は避けてください。**
-7. 解説（explanation）を記述してから正答（correct_answer）を記述することで、論理ステップを踏ませてください。
-8. 問題文（question）は具体的に記述し、生徒が「何をどう答えればよいか」迷わない明確な指示文を含めてください。
-9. 語彙整序問題において、使用しない語句を含めることは絶対に避けてください。
-10. 出題する問題の形式は様々にしてください。
-
-【難易度の定義】
-基礎：公式や用語、原理をそのまま当てはめるだけで解ける問題（英語であれば穴埋め問題）
-標準：基礎知識を複数組み合わせたり、少し視点を変えたりして解く問題（英語であれば語彙整序問題や誤文訂正）
-発展：未知の状況に対して、どの知識を使うべきか判断し、論理を組み立てて解く問題（英語であれば和訳問題や英作文問題）
+1. 以下の問題数を絶対に守り、合計 {total_questions} 問を作成してください。
+2. 全ての問題を必ず「英語の文法4択問題」にしてください。
+3. `correct_answer` には正解を、`choices` には必ず4つの選択肢を含めてください。
+4. Markdownの挨拶などは一切含めないでください。
+5. 出題する問題の形式（文法事項）には多様性を持たせてください。
 
 【出力JSONフォーマット】（以下のキーだけで構成すること）
 {{
@@ -265,6 +253,7 @@ def generate_homework():
       "drafting_process": "この問題を出題する背景と、事実・文法の簡潔な自己検証プロセス",
       "type": "基礎 または 標準 または 発展",
       "question": "問題文をここに詳細に記述",
+      "choices": ["選択肢1", "選択肢2", "選択肢3", "選択肢4"],
       "explanation": "解き方の解説をここに記述",
       "correct_answer": "正答をここに記述"
     }}
@@ -273,7 +262,23 @@ def generate_homework():
 """
     try:
         response = selected_model.generate_content(prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"), request_options={"timeout": 120})
-        result = json.loads(response.text)
+        initial_json = response.text
+        
+        verify_prompt = f"""
+        以下のJSON形式の英語文法復習プリントを確認し、条件を満たしているか検証・修正して、再度JSON形式で出力してください。API応答の高速化のため、検証結果の理由等は含めず、純粋なJSONデータのみを出力してください。
+        
+        【検証条件】
+        1. 全ての問題が「英語の文法4択問題」であるか。
+        2. 全ての問題に置いて `choices` の配列要素が正確に4つであるか。
+        3. `correct_answer` が `choices` の中の1つと完全に一致しているか。
+        4. 問題として成立しており、複数正解が存在しないか。
+        
+        【元のデータ】
+        {initial_json}
+        """
+        verify_response = selected_model.generate_content(verify_prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"), request_options={"timeout": 120})
+        
+        result = json.loads(verify_response.text)
         return jsonify({"status": "success", "homework_data": result})
     except Exception as e:
         print(f"Homework Generation Error: {e}")
@@ -281,11 +286,7 @@ def generate_homework():
 
 @app.route('/homework')
 def homework_route():
-    # ここで templates/homework.html を読み込むように指示します
     return render_template('homework.html')
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-       ##- 問1は{c_basic}問、問2は{c_normal}問、問3は{c_advanced}問を出題してください。
-       ##- 合計で {int(c_basic) + int(c_normal) + int(c_advanced)} 問の問題を作成してください。

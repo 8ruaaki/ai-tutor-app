@@ -31,16 +31,7 @@ async function initializeTest() {
 
         if (data.status === 'success') {
             window.currentQuestions = data.questions;
-            window.isReadingMode = data.is_reading_mode;
-
-            if (window.isReadingMode) {
-                wrapper.className = 'reading-mode';
-                document.getElementById('passage-container').style.display = 'block';
-                document.getElementById('passage-title').innerText = data.passage_title;
-                document.getElementById('passage-body').innerText = data.passage_body;
-            } else {
-                wrapper.className = 'standard-mode';
-            }
+            wrapper.className = 'standard-mode';
 
             const container = document.getElementById('questions-container');
             container.innerHTML = data.questions.map((q, i) => renderQuestionHTML(q, i)).join('');

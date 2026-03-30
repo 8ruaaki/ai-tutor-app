@@ -32,17 +32,6 @@
             font-size: 0.9rem;
         }
 
-        .info-badge {
-            display: none;
-            background: #eef2ff;
-            color: var(--primary-color);
-            padding: 8px;
-            border-radius: 5px;
-            font-size: 0.8rem;
-            margin-top: 10px;
-            font-weight: bold;
-        }
-
         .start-btn {
             width: 100%;
             padding: 15px;
@@ -76,10 +65,8 @@
 
         <div class="main-card">
             <div class="input-group">
-                <label for="subject">学習単元（できるだけ詳細に）</label>
-                <input type="text" id="subject" placeholder="※長文問題を出したい場合は”長文”という言葉を含めること。" oninput="handleModeSwitch()"
-                    autocomplete="off">
-                <div id="reading-info" class="info-badge">📖 長文読解モード：5問固定となります</div>
+                <label for="subject">学習単元（例: 関係代名詞、不定詞など）</label>
+                <input type="text" id="subject" placeholder="例: 関係代名詞、不定詞など" autocomplete="off">
             </div>
 
             <div class="input-group">
@@ -105,20 +92,6 @@
     </div>
 
     <script>
-        function handleModeSwitch() {
-            const subject = document.getElementById('subject').value;
-            const countSelect = document.getElementById('question-count');
-            const info = document.getElementById('reading-info');
-
-            if (subject.includes('長文')) {
-                countSelect.value = "5";
-                info.style.display = 'block';
-                Array.from(countSelect.options).forEach(opt => opt.disabled = opt.value !== "5");
-            } else {
-                info.style.display = 'none';
-                Array.from(countSelect.options).forEach(opt => opt.disabled = false);
-            }
-        }
 
         function startTest() {
             const subject = document.getElementById('subject').value;
